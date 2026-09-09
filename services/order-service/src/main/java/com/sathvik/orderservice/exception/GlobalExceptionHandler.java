@@ -45,4 +45,21 @@ public class GlobalExceptionHandler {
                 .status(HttpStatus.BAD_REQUEST)
                 .body(response);
     }
+
+    @ExceptionHandler(CatalogServiceUnavailableException.class)
+    public ResponseEntity<Map<String, Object>> handleCatalogUnavailable(
+            CatalogServiceUnavailableException ex
+    ) {
+
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("timestamp", Instant.now());
+        response.put("status", HttpStatus.SERVICE_UNAVAILABLE.value());
+        response.put("error", "Service Unavailable");
+        response.put("message", ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.SERVICE_UNAVAILABLE)
+                .body(response);
+    }
 }

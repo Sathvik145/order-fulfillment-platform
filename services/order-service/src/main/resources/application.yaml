@@ -5,6 +5,11 @@ spring:
   application:
     name: order-service
 
+  http:
+    clients:
+      connect-timeout: 2s
+      read-timeout: 2s
+
   datasource:
     url: jdbc:postgresql://localhost:5432/orderdb
     username: postgres
