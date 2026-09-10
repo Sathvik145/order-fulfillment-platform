@@ -1,17 +1,12 @@
 server:
-  port: 8081
+  port: 8084
 
 spring:
   application:
-    name: order-service
-
-  http:
-    clients:
-      connect-timeout: 2s
-      read-timeout: 2s
+    name: inventory-service
 
   datasource:
-    url: jdbc:postgresql://localhost:5432/orderdb
+    url: jdbc:postgresql://localhost:5432/inventorydb
     username: postgres
     password: postgres
 
@@ -21,6 +16,7 @@ spring:
 
     hibernate:
       ddl-auto: validate
+
     properties:
       hibernate:
         format_sql: true
@@ -28,14 +24,8 @@ spring:
   kafka:
     bootstrap-servers: localhost:9092
 
-    producer:
-      key-serializer: org.apache.kafka.common.serialization.StringSerializer
-      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
-
-      properties:
-        spring.json.add.type.headers: false
-
     consumer:
+      group-id: inventory-service-group
       auto-offset-reset: earliest
 
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
@@ -44,8 +34,11 @@ spring:
       properties:
         spring.json.trusted.packages: "*"
         spring.json.use.type.headers: false
+        spring.json.value.default.type: com.sathvik.inventoryservice.event.OrderCreatedEvent
 
-app:
-  kafka:
-    topics:
-      order-created: order.created
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JacksonJsonSerializer
+
+      properties:
+        spring.json.add.type.headers: false

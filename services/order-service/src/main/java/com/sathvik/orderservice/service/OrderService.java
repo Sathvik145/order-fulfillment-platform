@@ -14,7 +14,7 @@ import org.springframework.transaction.annotation.Transactional;
 import com.sathvik.orderservice.dto.OrderItemResponse;
 import com.sathvik.orderservice.client.CatalogClient;
 import com.sathvik.orderservice.dto.CatalogProductResponse;
-
+import java.util.UUID;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -143,6 +143,25 @@ public class OrderService {
                 .stream()
                 .map(this::toOrderResponse)
                 .toList();
+    }
+
+    @Transactional
+    public void markInventoryReserved(UUID orderId) {
+
+        Order order = orderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        order.setStatus("INVENTORY_RESERVED");
+    }
+    @Transactional
+    public void cancelOrder(UUID orderId) {
+
+        Order order = orderRepository
+                .findById(orderId)
+                .orElseThrow(() -> new OrderNotFoundException(orderId));
+
+        order.setStatus("CANCELLED");
     }
 
 

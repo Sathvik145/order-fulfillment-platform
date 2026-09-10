@@ -12,6 +12,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientException;
 
 @Component
 public class CatalogClient {
@@ -93,6 +94,21 @@ public class CatalogClient {
             throw new ProductNotFoundException(productId);
 
         } catch (ResourceAccessException ex) {
+
+            log.warn(
+                    "Catalog Service connection/timeout failure for product: {}",
+                    productId
+            );
+
+            throw new CatalogServiceUnavailableException();
+
+        } catch (RestClientException ex) {
+
+            log.warn(
+                    "Catalog Service HTTP/deserialization failure for product {}: {}",
+                    productId,
+                    ex.getMessage()
+            );
 
             throw new CatalogServiceUnavailableException();
         }
