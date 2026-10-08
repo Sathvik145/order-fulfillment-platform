@@ -1,7 +1,6 @@
 package com.sathvik.inventoryservice.consumer;
 
-import com.sathvik.inventoryservice.event.InventoryFailedEvent;
-import com.sathvik.inventoryservice.event.InventoryReservedEvent;
+
 import com.sathvik.inventoryservice.event.OrderCreatedEvent;
 import com.sathvik.inventoryservice.exception.InsufficientStockException;
 import com.sathvik.inventoryservice.exception.InventoryNotFoundException;
@@ -12,8 +11,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
-import java.util.UUID;
+
 
 @Component
 public class OrderCreatedConsumer {
@@ -47,18 +45,6 @@ public class OrderCreatedConsumer {
 
             inventoryService.reserveStock(event);
 
-            InventoryReservedEvent reservedEvent =
-                    new InventoryReservedEvent(
-                            UUID.randomUUID(),
-                            event.orderId(),
-                            event.userId(),
-                            event.items(),
-                            event.totalAmount(),
-                            Instant.now()
-                    );
-
-            inventoryEventProducer
-                    .publishInventoryReserved(reservedEvent);
 
             log.info(
                     "Inventory reserved successfully for order: {}",
@@ -68,19 +54,14 @@ public class OrderCreatedConsumer {
         } catch (InventoryNotFoundException |
                  InsufficientStockException ex) {
 
-            InventoryFailedEvent failedEvent =
-                    new InventoryFailedEvent(
-                            UUID.randomUUID(),
-                            event.orderId(),
-                            ex.getMessage(),
-                            Instant.now()
-                    );
-
-            inventoryEventProducer
-                    .publishInventoryFailed(failedEvent);
+            inventoryService.createInventoryFailedOutbox(
+                    event,
+                    ex.getMessage()
+            );
 
             log.warn(
-                    "Inventory reservation failed for order {}: {}",
+                    "Inventory reservation failed for order {}. " +
+                            "Failure event stored in outbox. Reason: {}",
                     event.orderId(),
                     ex.getMessage()
             );

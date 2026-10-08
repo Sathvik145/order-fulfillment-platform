@@ -10,6 +10,14 @@ import com.sathvik.inventoryservice.event.OrderCreatedEvent;
 import com.sathvik.inventoryservice.event.OrderItemEvent;
 import com.sathvik.inventoryservice.exception.InsufficientStockException;
 import com.sathvik.inventoryservice.exception.InventoryNotFoundException;
+import com.sathvik.inventoryservice.entity.InventoryOutbox;
+import com.sathvik.inventoryservice.event.InventoryReservedEvent;
+import com.sathvik.inventoryservice.repository.InventoryOutboxRepository;
+import tools.jackson.databind.ObjectMapper;
+import com.sathvik.inventoryservice.event.InventoryFailedEvent;
+
+import java.time.Instant;
+import java.util.UUID;
 
 import java.util.Comparator;
 import java.util.List;
@@ -20,9 +28,17 @@ import java.time.Instant;
 public class InventoryService {
 
     private final InventoryRepository inventoryRepository;
+    private final InventoryOutboxRepository inventoryOutboxRepository;
+    private final ObjectMapper objectMapper;
 
-    public InventoryService(InventoryRepository inventoryRepository) {
+    public InventoryService(
+            InventoryRepository inventoryRepository,
+            InventoryOutboxRepository inventoryOutboxRepository,
+            ObjectMapper objectMapper
+    ) {
         this.inventoryRepository = inventoryRepository;
+        this.inventoryOutboxRepository = inventoryOutboxRepository;
+        this.objectMapper = objectMapper;
     }
 
     @Transactional
@@ -89,5 +105,79 @@ public class InventoryService {
                             + item.quantity()
             );
         }
+
+        InventoryReservedEvent reservedEvent =
+                new InventoryReservedEvent(
+                        UUID.randomUUID(),
+                        event.orderId(),
+                        event.userId(),
+                        event.items(),
+                        event.totalAmount(),
+                        Instant.now()
+                );
+
+        String payload;
+
+        try {
+            payload = objectMapper.writeValueAsString(reservedEvent);
+        } catch (Exception ex) {
+            throw new IllegalStateException(
+                    "Failed to serialize inventory.reserved event",
+                    ex
+            );
+        }
+
+        InventoryOutbox outboxEvent =
+                new InventoryOutbox(
+                        UUID.randomUUID(),
+                        event.orderId(),
+                        "inventory.reserved",
+                        payload,
+                        "PENDING",
+                        Instant.now(),
+                        null
+                );
+
+        inventoryOutboxRepository.save(outboxEvent);
+
+
+    }
+    @Transactional
+    public void createInventoryFailedOutbox(
+            OrderCreatedEvent event,
+            String reason
+    ) {
+
+        InventoryFailedEvent failedEvent =
+                new InventoryFailedEvent(
+                        UUID.randomUUID(),
+                        event.orderId(),
+                        reason,
+                        Instant.now()
+                );
+
+        String payload;
+
+        try {
+            payload = objectMapper.writeValueAsString(failedEvent);
+        } catch (Exception ex) {
+            throw new IllegalStateException(
+                    "Failed to serialize inventory.failed event",
+                    ex
+            );
+        }
+
+        InventoryOutbox outboxEvent =
+                new InventoryOutbox(
+                        UUID.randomUUID(),
+                        event.orderId(),
+                        "inventory.failed",
+                        payload,
+                        "PENDING",
+                        Instant.now(),
+                        null
+                );
+
+        inventoryOutboxRepository.save(outboxEvent);
     }
 }
