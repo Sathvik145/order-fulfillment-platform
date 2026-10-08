@@ -15,6 +15,8 @@ import com.sathvik.inventoryservice.event.InventoryReservedEvent;
 import com.sathvik.inventoryservice.repository.InventoryOutboxRepository;
 import tools.jackson.databind.ObjectMapper;
 import com.sathvik.inventoryservice.event.InventoryFailedEvent;
+import com.sathvik.inventoryservice.entity.ProcessedEvent;
+import com.sathvik.inventoryservice.repository.ProcessedEventRepository;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -30,14 +32,18 @@ public class InventoryService {
     private final InventoryRepository inventoryRepository;
     private final InventoryOutboxRepository inventoryOutboxRepository;
     private final ObjectMapper objectMapper;
+    private final ProcessedEventRepository processedEventRepository;
+
 
     public InventoryService(
             InventoryRepository inventoryRepository,
             InventoryOutboxRepository inventoryOutboxRepository,
+            ProcessedEventRepository processedEventRepository,
             ObjectMapper objectMapper
     ) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryOutboxRepository = inventoryOutboxRepository;
+        this.processedEventRepository = processedEventRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -70,6 +76,10 @@ public class InventoryService {
 
     @Transactional
     public void reserveStock(OrderCreatedEvent event) {
+        if (processedEventRepository.existsById(event.eventId())) {
+
+            return;
+        }
 
         List<OrderItemEvent> items = event.items()
                 .stream()
@@ -140,6 +150,16 @@ public class InventoryService {
 
         inventoryOutboxRepository.save(outboxEvent);
 
+        ProcessedEvent processedEvent =
+                new ProcessedEvent(
+                        event.eventId(),
+                        event.orderId(),
+                        "order.created",
+                        Instant.now()
+                );
+
+        processedEventRepository.save(processedEvent);
+
 
     }
     @Transactional
@@ -147,6 +167,12 @@ public class InventoryService {
             OrderCreatedEvent event,
             String reason
     ) {
+
+        // Duplicate event → don't create another failure event
+        if (processedEventRepository.existsById(event.eventId())) {
+
+            return;
+        }
 
         InventoryFailedEvent failedEvent =
                 new InventoryFailedEvent(
@@ -159,8 +185,11 @@ public class InventoryService {
         String payload;
 
         try {
+
             payload = objectMapper.writeValueAsString(failedEvent);
+
         } catch (Exception ex) {
+
             throw new IllegalStateException(
                     "Failed to serialize inventory.failed event",
                     ex
@@ -179,5 +208,15 @@ public class InventoryService {
                 );
 
         inventoryOutboxRepository.save(outboxEvent);
+
+        ProcessedEvent processedEvent =
+                new ProcessedEvent(
+                        event.eventId(),
+                        event.orderId(),
+                        "order.created",
+                        Instant.now()
+                );
+
+        processedEventRepository.save(processedEvent);
     }
 }
