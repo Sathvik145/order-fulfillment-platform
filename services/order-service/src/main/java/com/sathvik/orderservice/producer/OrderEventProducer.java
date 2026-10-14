@@ -7,6 +7,8 @@ import org.springframework.stereotype.Component;
 @Component
 public class OrderEventProducer {
 
+    private static final String TOPIC = "order.created";
+
     private final KafkaTemplate<String, OrderCreatedEvent> kafkaTemplate;
 
     public OrderEventProducer(
@@ -17,10 +19,29 @@ public class OrderEventProducer {
 
     public void publishOrderCreated(OrderCreatedEvent event) {
 
-        kafkaTemplate.send(
-                "order.created",
-                event.orderId(),
-                event
-        );
+        try {
+
+            kafkaTemplate.send(
+                    TOPIC,
+                    event.orderId().toString(),
+                    event
+            ).get();
+
+        } catch (InterruptedException ex) {
+
+            Thread.currentThread().interrupt();
+
+            throw new RuntimeException(
+                    "Interrupted while publishing order.created",
+                    ex
+            );
+
+        } catch (Exception ex) {
+
+            throw new RuntimeException(
+                    "Failed to publish order.created",
+                    ex
+            );
+        }
     }
 }
