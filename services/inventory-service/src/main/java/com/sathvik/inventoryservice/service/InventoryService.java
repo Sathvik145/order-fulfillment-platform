@@ -4,6 +4,7 @@ import com.sathvik.inventoryservice.dto.InventoryResponse;
 import com.sathvik.inventoryservice.dto.StockRequest;
 import com.sathvik.inventoryservice.entity.Inventory;
 import com.sathvik.inventoryservice.repository.InventoryRepository;
+import com.sathvik.inventoryservice.repository.InventoryReservationRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sathvik.inventoryservice.event.OrderCreatedEvent;
@@ -17,14 +18,18 @@ import tools.jackson.databind.ObjectMapper;
 import com.sathvik.inventoryservice.event.InventoryFailedEvent;
 import com.sathvik.inventoryservice.entity.ProcessedEvent;
 import com.sathvik.inventoryservice.repository.ProcessedEventRepository;
+import com.sathvik.inventoryservice.entity.InventoryReservation;
+import com.sathvik.inventoryservice.event.PaymentFailedEvent;
+
 
 import java.time.Instant;
+import java.util.List;
+
+
 import java.util.UUID;
 
 import java.util.Comparator;
-import java.util.List;
 
-import java.time.Instant;
 
 @Service
 public class InventoryService {
@@ -33,17 +38,19 @@ public class InventoryService {
     private final InventoryOutboxRepository inventoryOutboxRepository;
     private final ObjectMapper objectMapper;
     private final ProcessedEventRepository processedEventRepository;
-
+    private final InventoryReservationRepository inventoryReservationRepository;
 
     public InventoryService(
             InventoryRepository inventoryRepository,
             InventoryOutboxRepository inventoryOutboxRepository,
             ProcessedEventRepository processedEventRepository,
+            InventoryReservationRepository inventoryReservationRepository,
             ObjectMapper objectMapper
     ) {
         this.inventoryRepository = inventoryRepository;
         this.inventoryOutboxRepository = inventoryOutboxRepository;
         this.processedEventRepository = processedEventRepository;
+        this.inventoryReservationRepository = inventoryReservationRepository;
         this.objectMapper = objectMapper;
     }
 
@@ -114,6 +121,22 @@ public class InventoryService {
                     inventory.getReservedQuantity()
                             + item.quantity()
             );
+
+            Instant now = Instant.now();
+
+            InventoryReservation reservation =
+                    new InventoryReservation(
+                            UUID.randomUUID(),
+                            event.orderId(),
+                            item.productId(),
+                            item.quantity(),
+                            "RESERVED",
+                            now,
+                            now
+                    );
+
+            inventoryReservationRepository.save(reservation);
+
         }
 
         InventoryReservedEvent reservedEvent =
@@ -218,5 +241,74 @@ public class InventoryService {
                 );
 
         processedEventRepository.save(processedEvent);
+    }
+
+    @Transactional
+    public void releaseReservation(PaymentFailedEvent event) {
+
+        // Idempotency: do not release stock twice
+        if (processedEventRepository.existsById(event.eventId())) {
+
+            System.out.println(
+                    "payment.failed event already processed: "
+                            + event.eventId()
+            );
+
+            return;
+        }
+
+        // Find all reservations for this order that are still RESERVED
+        List<InventoryReservation> reservations =
+                inventoryReservationRepository
+                        .findByOrderIdAndStatus(
+                                event.orderId(),
+                                "RESERVED"
+                        );
+
+        for (InventoryReservation reservation : reservations) {
+
+            // Lock the inventory row before modifying stock
+            Inventory inventory =
+                    inventoryRepository
+                            .findByProductIdForUpdate(
+                                    reservation.getProductId()
+                            )
+                            .orElseThrow(() ->
+                                    new RuntimeException(
+                                            "Inventory not found for product: "
+                                                    + reservation.getProductId()
+                                    )
+                            );
+
+            int quantityToRelease =
+                    reservation.getQuantity();
+
+            inventory.setAvailableQuantity(
+                    inventory.getAvailableQuantity()
+                            + quantityToRelease
+            );
+
+            inventory.setReservedQuantity(
+                    inventory.getReservedQuantity()
+                            - quantityToRelease
+            );
+
+            reservation.markReleased();
+        }
+
+        // Mark this payment.failed event as processed
+        processedEventRepository.save(
+                new ProcessedEvent(
+                        event.eventId(),
+                        event.orderId(),
+                        "payment.failed",
+                        Instant.now()
+                )
+        );
+
+        System.out.println(
+                "Inventory reservation released for order: "
+                        + event.orderId()
+        );
     }
 }

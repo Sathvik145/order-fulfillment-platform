@@ -268,4 +268,32 @@ public class OrderService {
                 order.getUpdatedAt()
         );
     }
+
+    @Transactional
+    public void confirmOrder(UUID orderId) {
+
+        Order order = orderRepository.findById(orderId)
+                .orElseThrow(() ->
+                        new OrderNotFoundException(orderId)
+                );
+
+        if ("CONFIRMED".equals(order.getStatus())) {
+            return;
+        }
+
+        if (!"INVENTORY_RESERVED".equals(order.getStatus())) {
+            System.out.println(
+                    "Cannot confirm order " + orderId
+                            + " because current status is "
+                            + order.getStatus()
+            );
+            return;
+        }
+
+        order.setStatus("CONFIRMED");
+
+        System.out.println(
+                "Order CONFIRMED: " + orderId
+        );
+    }
 }
