@@ -41,10 +41,12 @@ public class OrderCreatedConsumer {
                 event.orderId()
         );
 
+        // TEMPORARY TEST CODE FOR RETRY + DLT
+
+
         try {
 
             inventoryService.reserveStock(event);
-
 
             log.info(
                     "Inventory reserved successfully for order: {}",

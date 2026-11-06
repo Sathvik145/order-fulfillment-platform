@@ -21,11 +21,12 @@ public class InventoryReservedConsumer {
     public void consume(InventoryReservedEvent event) {
 
         System.out.println(
-                "Inventory Reserved Event received by Payment Service"
+                "Payment Service received inventory.reserved for order: "
+                        + event.orderId()
         );
 
-        System.out.println("Order ID: " + event.orderId());
-        System.out.println("Amount: " + event.totalAmount());
+        // TEMPORARY RETRY + DLT TEST
+
 
         paymentService.processPayment(event);
     }

@@ -28,6 +28,9 @@ public class PaymentFailedConsumer {
                         + event.orderId()
         );
 
+        // TEMPORARY RETRY + DLT TEST
+
+
         inventoryService.releaseReservation(event);
     }
 }

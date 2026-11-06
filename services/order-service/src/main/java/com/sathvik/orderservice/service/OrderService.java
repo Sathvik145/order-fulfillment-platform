@@ -17,6 +17,7 @@ import com.sathvik.orderservice.repository.OrderRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import tools.jackson.databind.ObjectMapper;
+import com.sathvik.orderservice.metrics.OrderMetrics;
 
 import java.math.BigDecimal;
 import java.time.Instant;
@@ -31,17 +32,20 @@ public class OrderService {
     private final CatalogClient catalogClient;
     private final OrderOutboxRepository orderOutboxRepository;
     private final ObjectMapper objectMapper;
+    private final OrderMetrics orderMetrics;
 
     public OrderService(
             OrderRepository orderRepository,
             CatalogClient catalogClient,
             OrderOutboxRepository orderOutboxRepository,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            OrderMetrics orderMetrics
     ) {
         this.orderRepository = orderRepository;
         this.catalogClient = catalogClient;
         this.orderOutboxRepository = orderOutboxRepository;
         this.objectMapper = objectMapper;
+        this.orderMetrics = orderMetrics;
     }
 
     @Transactional
@@ -168,6 +172,7 @@ public class OrderService {
          * be published to Kafka.
          */
         orderOutboxRepository.save(outboxEvent);
+        orderMetrics.incrementOrdersCreated();
 
         /*
          * Because this whole method is @Transactional:

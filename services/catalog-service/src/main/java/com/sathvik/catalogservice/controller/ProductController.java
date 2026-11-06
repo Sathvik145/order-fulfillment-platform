@@ -6,6 +6,7 @@ import com.sathvik.catalogservice.service.ProductService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
+import com.sathvik.catalogservice.dto.UpdateProductRequest;
 
 @RestController
 @RequestMapping("/api/products")
@@ -30,4 +31,13 @@ public class ProductController {
     ) {
         return productService.getProductById(productId);
     }
+
+    @PutMapping("/{productId}")
+    public ProductResponse updateProduct(
+            @PathVariable String productId,
+            @RequestBody UpdateProductRequest request
+    ) {
+        return productService.updateProduct(productId, request);
+    }
+
 }
